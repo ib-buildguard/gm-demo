@@ -1,0 +1,23 @@
+# Build Evidence & Security Analysis Tool - Dependencies
+# Core Streamlit framework
+streamlit>=1.28.0
+
+# Data processing and analysis
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Advanced analytics
+duckdb>=0.9.0
+
+# Visualization
+altair>=5.0.0
+plotly>=5.17.0
+
+# Graph analysis for header dependencies
+networkx>=3.0
+
+# Configuration management
+PyYAML>=6.0
+
+# Progress bars and utilities
+tqdm>=4.65.0
