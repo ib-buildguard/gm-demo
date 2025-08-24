@@ -72,19 +72,17 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 def load_duckdb_connection(db_path: str) -> duckdb.DuckDBPyConnection:
-    """Load DuckDB connection with improved error handling."""
+    """Load DuckDB connection with silent error handling."""
     try:
         if db_path.startswith("md:"):
-            # MotherDuck connection
-            st.info("🔗 Connecting to MotherDuck cloud database...")
+            # MotherDuck connection - silent connection
             conn = duckdb.connect(db_path)
             # Simple test query
             result = conn.execute("SELECT 1 as test").fetchone()
             if result:
-                st.success("✅ Connected to MotherDuck successfully!")
                 return conn
             else:
-                st.error("❌ MotherDuck connection test failed")
+                st.error("❌ Database connection failed")
                 return None
         else:
             # Local connection
@@ -736,16 +734,10 @@ def create_dependency_graph_plot(dependencies: Dict) -> go.Figure:
 # Sidebar configuration
 st.sidebar.header("Configuration")
 
-# Database configuration - with fallback option
-use_cloud = st.sidebar.checkbox("☁️ Use Cloud Database", value=False, help="Use MotherDuck cloud database (may be slower)")
-
-if use_cloud:
-    motherduck_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRhbC5rYXB0c2FuQGluY3JlZGlidWlsZC5jb20iLCJzZXNzaW9uIjoidGFsLmthcHRzYW4uaW5jcmVkaWJ1aWxkLmNvbSIsInBhdCI6IjhPSDVYRWw2NHpQWEVzRGJpam44MUNmbE13S0xjb0U5VWxwMEx6Tnc2WVUiLCJ1c2VySWQiOiIyYjg4ZTc0Ny1kYTg1LTQwZjEtODUwNS04MmY3ZTUxZjU4MDAiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NTYwNDQzMzN9.jM60vZEBOFligSptbzwV9KQCIgPdcEolHu60WTHHiX0"
-    motherduck_database = "build_analytics"
-    duckdb_path = f"md:{motherduck_database}?motherduck_token={motherduck_token}"
-else:
-    # Use local database for better performance and stability
-    duckdb_path = DEFAULT_DUCKDB_PATH
+# Database configuration - cloud by default (hidden from UI)
+motherduck_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRhbC5rYXB0c2FuQGluY3JlZGlidWlsZC5jb20iLCJzZXNzaW9uIjoidGFsLmthcHRzYW4uaW5jcmVkaWJ1aWxkLmNvbSIsInBhdCI6IjhPSDVYRWw2NHpQWEVzRGJpam44MUNmbE13S0xjb0U5VWxwMEx6Tnc2WVUiLCJ1c2VySWQiOiIyYjg4ZTc0Ny1kYTg1LTQwZjEtODUwNS04MmY3ZTUxZjU4MDAiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NTYwNDQzMzN9.jM60vZEBOFligSptbzwV9KQCIgPdcEolHu60WTHHiX0"
+motherduck_database = "build_analytics"
+duckdb_path = f"md:{motherduck_database}?motherduck_token={motherduck_token}"
 
 # Security policy configuration
 st.sidebar.subheader("Security Policy")
@@ -954,7 +946,10 @@ if analyze_button and selected_build:
     
     with col4:
         violation_count = sum(len(v) for v in security_violations.values())
-        st.metric("Security Violations", violation_count)
+        if violation_count > 0:
+            st.metric("Security Violations", violation_count, delta="🚨 Issues Found")
+        else:
+            st.metric("Security Violations", violation_count, delta="✅ Clean")
     
     with col5:
         # Show toolchain tool count instead of compliance score  
@@ -991,6 +986,27 @@ if analyze_button and selected_build:
             else:
                 st.info("No processes removed")
     
+    # Critical Security Alerts (if any)
+    critical_violations = []
+    for violation_type, violations in security_violations.items():
+        if violations and violation_type in ["denied_processes", "privilege_escalation", "external_network_access"]:
+            critical_violations.extend(violations)
+    
+    if critical_violations:
+        st.error(f"🚨 **CRITICAL SECURITY ALERT**: {len(critical_violations)} high-risk violations detected!")
+        alert_col1, alert_col2 = st.columns(2)
+        with alert_col1:
+            st.write("**Immediate Action Required:**")
+            st.write("- Review denied processes")
+            st.write("- Check privilege escalations") 
+            st.write("- Verify network access")
+        with alert_col2:
+            st.write("**Risk Level: HIGH**")
+            st.write("These violations may indicate:")
+            st.write("- Security policy breaches")
+            st.write("- Potential malicious activity")
+            st.write("- Compromised build environment")
+
     # Enhanced Security Findings
     st.subheader("🚨 Security & Compliance Analysis")
     
