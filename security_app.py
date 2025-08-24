@@ -72,12 +72,28 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 def load_duckdb_connection(db_path: str) -> duckdb.DuckDBPyConnection:
-    """Load DuckDB connection with error handling."""
+    """Load DuckDB connection with improved error handling."""
     try:
-        conn = duckdb.connect(db_path)
-        return conn
+        if db_path.startswith("md:"):
+            # MotherDuck connection
+            st.info("🔗 Connecting to MotherDuck cloud database...")
+            conn = duckdb.connect(db_path)
+            # Simple test query
+            result = conn.execute("SELECT 1 as test").fetchone()
+            if result:
+                st.success("✅ Connected to MotherDuck successfully!")
+                return conn
+            else:
+                st.error("❌ MotherDuck connection test failed")
+                return None
+        else:
+            # Local connection
+            conn = duckdb.connect(db_path)
+            return conn
     except Exception as e:
-        st.error(f"Failed to connect to DuckDB: {e}")
+        st.error(f"❌ Database connection failed: {e}")
+        if "motherduck" in str(e).lower():
+            st.error("💡 Check your MotherDuck token and internet connection")
         return None
 
 def get_available_builds(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
@@ -154,9 +170,9 @@ def get_build_metadata(conn: duckdb.DuckDBPyConnection, build_id: str) -> Dict:
         return {}
 
 def get_process_data(conn: duckdb.DuckDBPyConnection, build_id: str) -> pd.DataFrame:
-    """Get process execution data for a build."""
+    """Get process execution data for a build - optimized for cloud performance."""
     try:
-        # Use intercepted_process table which exists for all builds
+        # Use intercepted_process table - limit data for better performance
         table_name = f"sqlite_build_{build_id}_intercepted_process"
         query = f"""
         SELECT 
@@ -172,6 +188,7 @@ def get_process_data(conn: duckdb.DuckDBPyConnection, build_id: str) -> pd.DataF
             Arguments as arguments
         FROM {table_name}
         ORDER BY Start
+        LIMIT 50000
         """
         return conn.execute(query).df()
     except Exception as e:
@@ -179,7 +196,7 @@ def get_process_data(conn: duckdb.DuckDBPyConnection, build_id: str) -> pd.DataF
         return pd.DataFrame()
 
 def get_ccache_data(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Get ccache log data."""
+    """Get ccache log data - optimized and cached."""
     try:
         query = """
         SELECT 
@@ -192,6 +209,7 @@ def get_ccache_data(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             _line_number
         FROM ccache_logs
         ORDER BY _line_number
+        LIMIT 10000
         """
         return conn.execute(query).df()
     except Exception as e:
@@ -718,16 +736,15 @@ def create_dependency_graph_plot(dependencies: Dict) -> go.Figure:
 # Sidebar configuration
 st.sidebar.header("Configuration")
 
-# Database configuration
-st.sidebar.subheader("📊 Database")
-use_motherduck = st.sidebar.checkbox("Use MotherDuck Cloud", value=False, help="Connect to MotherDuck cloud database instead of local file")
+# Database configuration - with fallback option
+use_cloud = st.sidebar.checkbox("☁️ Use Cloud Database", value=False, help="Use MotherDuck cloud database (may be slower)")
 
-if use_motherduck:
-    motherduck_database = st.sidebar.text_input("MotherDuck Database", value="build_analytics", help="MotherDuck database name")
-    motherduck_token = st.sidebar.text_input("MotherDuck Token", type="password", help="Your MotherDuck authentication token")
-    duckdb_path = f"md:{motherduck_database}?motherduck_token={motherduck_token}" if motherduck_token else None
+if use_cloud:
+    motherduck_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRhbC5rYXB0c2FuQGluY3JlZGlidWlsZC5jb20iLCJzZXNzaW9uIjoidGFsLmthcHRzYW4uaW5jcmVkaWJ1aWxkLmNvbSIsInBhdCI6IjhPSDVYRWw2NHpQWEVzRGJpam44MUNmbE13S0xjb0U5VWxwMEx6Tnc2WVUiLCJ1c2VySWQiOiIyYjg4ZTc0Ny1kYTg1LTQwZjEtODUwNS04MmY3ZTUxZjU4MDAiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NTYwNDQzMzN9.jM60vZEBOFligSptbzwV9KQCIgPdcEolHu60WTHHiX0"
+    motherduck_database = "build_analytics"
+    duckdb_path = f"md:{motherduck_database}?motherduck_token={motherduck_token}"
 else:
-    # Use local database
+    # Use local database for better performance and stability
     duckdb_path = DEFAULT_DUCKDB_PATH
 
 # Security policy configuration
@@ -746,10 +763,16 @@ except yaml.YAMLError as e:
     security_policy = DEFAULT_SECURITY_POLICY
 
 # Main application
-if not Path(duckdb_path).exists():
-    st.error(f"DuckDB file not found: {duckdb_path}")
-    st.info("Please run the ingest script first: `python3 scripts/ingest_duckdb.py`")
-    st.stop()
+# Check database availability (different logic for MotherDuck vs local)
+if duckdb_path.startswith("md:"):
+    # MotherDuck connection - we'll test connectivity later when we try to connect
+    pass
+else:
+    # Local file - check if it exists
+    if not Path(duckdb_path).exists():
+        st.error(f"DuckDB file not found: {duckdb_path}")
+        st.info("Please run the ingest script first: `python3 scripts/ingest_duckdb.py`")
+        st.stop()
 
 # Load data
 conn = load_duckdb_connection(duckdb_path)
@@ -882,15 +905,19 @@ if analyze_button and selected_build:
             baseline_processes_df = get_process_data(conn, baseline_build)
             build_comparison = compare_builds(processes_df, baseline_processes_df)
         
-        # Parse dependencies
-        dependencies = parse_ccache_dependencies(ccache_df)
-        
-        # Toolchain analysis
-        toolchain_data = get_toolchain_data(conn, selected_build)
-        
-        # Security analysis
-        security_violations = analyze_security_violations(processes_df, security_policy)
-        advanced_security = analyze_advanced_security(processes_df, ccache_df, security_policy)
+        # Show data sampling info for cloud performance
+        if len(processes_df) >= 50000:
+            st.info(f"📊 **Performance Mode**: Analyzing {len(processes_df):,} processes (sampled from larger dataset for faster cloud performance)")
+    
+    # Parse dependencies
+    dependencies = parse_ccache_dependencies(ccache_df)
+    
+    # Toolchain analysis
+    toolchain_data = get_toolchain_data(conn, selected_build)
+    
+    # Security analysis
+    security_violations = analyze_security_violations(processes_df, security_policy)
+    advanced_security = analyze_advanced_security(processes_df, ccache_df, security_policy)
     
     # Display results
     header_text = f"🔍 Security Analysis - Build {selected_build}"
