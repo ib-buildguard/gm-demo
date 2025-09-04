@@ -1,6 +1,6 @@
-# 🔒 Build Evidence & Security Analysis Tool
+# 🛡️ Security Analytics Platform
 
-A comprehensive, production-quality Streamlit application for analyzing IncrediBuild SQLite databases and ccache logs to generate security and compliance insights.
+Enterprise-grade security and compliance analytics for build systems, featuring an **elegant lavender and powder blue theme** with comprehensive supply chain security insights.
 
 ## 🚀 Quick Start
 
@@ -8,8 +8,35 @@ A comprehensive, production-quality Streamlit application for analyzing IncrediB
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the application
-streamlit run app.py
+# Run with elegant lavender theme
+streamlit run security_app.py
+```
+
+## 🎨 **Elegant Lavender & Powder Blue Theme**
+
+The app features a beautiful light theme with soft, professional colors:
+- **💜 Lavender Accents**: Elegant purple tones for a sophisticated look
+- **💙 Powder Blue**: Soft blue highlights for code and interactive elements
+- **🤍 Clean Backgrounds**: White base with ghostWhite sidebar
+- **✨ Smooth Gradients**: Subtle animations and professional styling
+
+### Color Palette
+- **Main Background**: White with lavender secondary elements
+- **Sidebar**: Ghost white with lavender accents
+- **Code Blocks**: Powder blue for better readability
+- **Interactive Elements**: Purple gradients with blue highlights
+
+### Current Theme Configuration
+```toml
+[theme]
+base="light"
+backgroundColor="white"
+secondaryBackgroundColor="lavender"
+codeBackgroundColor="powderBlue"
+
+[theme.sidebar]
+backgroundColor="ghostWhite"
+secondaryBackgroundColor="lavender"
 ```
 
 ## ✨ Key Features

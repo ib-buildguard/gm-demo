@@ -1,0 +1,13 @@
+[theme]
+base="light"
+backgroundColor="white"
+secondaryBackgroundColor="lavender"
+codeBackgroundColor="powderBlue"
+
+[theme.sidebar]
+backgroundColor="ghostWhite"
+secondaryBackgroundColor="lavender"
+
+[server]
+# Enable theme configuration during development
+runOnSave = true
